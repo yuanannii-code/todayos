@@ -1,0 +1,890 @@
+/* ============================================================
+   TodayOS — style.css
+   Design Tokens 集中管理，所有元件樣式皆引用變數，
+   不使用魔術數字，維持單一 Design System。
+============================================================ */
+
+/* ------------------------------------------------------------
+   1. Design Tokens
+------------------------------------------------------------ */
+:root {
+  /* 色彩 */
+  --color-bg: #000000;
+  --color-card: #111111;
+  --color-text: #FFFFFF;
+  --color-text-secondary: #8E8E93;
+  --color-divider: #222222;
+
+  /* 8pt Grid 間距 */
+  --space-half: 4px;  /* 8pt Grid 的半格，僅用於極小間距如格點 gap */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+
+  /* 圓角 */
+  --radius-card: 24px;
+  --radius-pill: 999px;
+  --radius-sm: 12px;
+
+  /* 卡片內距 */
+  --card-padding: 24px;
+
+  /* 字體 */
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC", sans-serif;
+
+  --font-number-xl: 700 64px/1 var(--font-family);   /* TODAY 倒數大數字 */
+  --font-title: 700 22px/1.3 var(--font-family);     /* 卡片標題 */
+  --font-body: 400 17px/1.4 var(--font-family);      /* 內文 */
+  --font-caption: 400 13px/1.4 var(--font-family);   /* 次要說明 */
+  --font-eyebrow: 590 13px/1 var(--font-family);      /* 小標籤，如 TODAY */
+
+  /* 動畫 */
+  --duration: 250ms;
+  --easing: ease;
+
+  /* Bottom tab 高度（含安全區域） */
+  --bottom-tab-height: 64px;
+}
+
+/* ------------------------------------------------------------
+   2. Reset / 全域基礎樣式
+------------------------------------------------------------ */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  background: var(--color-bg);
+}
+
+body {
+  font: var(--font-body);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  /* 支援 iPhone 瀏海/安全區域 */
+  padding-top: env(safe-area-inset-top);
+  overscroll-behavior-y: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+ul {
+  list-style: none;
+}
+
+svg {
+  display: block;
+}
+
+input, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* ------------------------------------------------------------
+   3. App 容器 / Dashboard 版面
+------------------------------------------------------------ */
+#app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 通用 view 容器：Dashboard／Calendar 共用的頁面層級樣式 */
+.view {
+  flex: 1;
+  padding: var(--space-3) var(--space-2)
+    calc(var(--bottom-tab-height) + env(safe-area-inset-bottom) + var(--space-3));
+}
+
+.view[hidden] {
+  display: none;
+}
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ------------------------------------------------------------
+   4. 卡片共用樣式
+------------------------------------------------------------ */
+.card {
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  padding: var(--card-padding);
+}
+
+.card__title {
+  font: var(--font-title);
+  margin-bottom: var(--space-2);
+}
+
+.card__eyebrow {
+  font: var(--font-eyebrow);
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+/* ------------------------------------------------------------
+   5. ① TODAY 卡
+------------------------------------------------------------ */
+.card--today {
+  padding-bottom: var(--space-4);
+}
+
+.today__countdown {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.today__number {
+  font: var(--font-number-xl);
+  font-size: 72px; /* 最大數字，畫面最醒目 */
+  letter-spacing: -0.02em;
+}
+
+.today__unit {
+  font: var(--font-title);
+  color: var(--color-text-secondary);
+}
+
+.today__subtitle {
+  font: var(--font-body);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.today__subtitle span {
+  color: var(--color-text);
+}
+
+/* 通用進度條（TODAY 倒數 / 飲食 / 支出 共用） */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-divider);
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  width: 0%; /* 由 JS 動態設定 */
+  background: var(--color-text);
+  border-radius: var(--radius-pill);
+  transition: width var(--duration) var(--easing);
+}
+
+/* ------------------------------------------------------------
+   6. ② 日期卡
+------------------------------------------------------------ */
+.card--date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.date__number {
+  display: block;
+  font: 700 28px/1.2 var(--font-family);
+}
+
+.date__weekday {
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-1);
+}
+
+.date__weather {
+  text-align: right;
+}
+
+.date__temp {
+  display: block;
+  font: 700 28px/1.2 var(--font-family);
+}
+
+.date__condition {
+  display: block;
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-1);
+}
+
+/* ------------------------------------------------------------
+   7. ③ 經期卡（圓形進度）
+------------------------------------------------------------ */
+.card--cycle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.cycle__ring-wrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.cycle__ring {
+  transform: rotate(-90deg); /* 讓進度從 12 點鐘方向開始 */
+}
+
+.cycle__ring-track {
+  fill: none;
+  stroke: var(--color-divider);
+  stroke-width: 8;
+}
+
+.cycle__ring-progress {
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 8;
+  stroke-linecap: round;
+  /* stroke-dasharray / dashoffset 由 JS 依百分比計算並套用 */
+  transition: stroke-dashoffset var(--duration) var(--easing);
+}
+
+.cycle__ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cycle__day-number {
+  font: 590 15px/1 var(--font-family);
+}
+
+.cycle__next {
+  font: var(--font-body);
+  color: var(--color-text-secondary);
+}
+
+/* ------------------------------------------------------------
+   8. ④ 今日行程
+------------------------------------------------------------ */
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.schedule-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px; /* 符合 HIG 觸控標準 */
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-divider);
+  transition: opacity var(--duration) var(--easing);
+}
+
+.schedule-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.schedule-item:active {
+  opacity: 0.6;
+}
+
+.schedule-item__time {
+  font: 590 15px/1 var(--font-family);
+  color: var(--color-text-secondary);
+  min-width: 52px;
+}
+
+.schedule-item__title {
+  font: var(--font-body);
+}
+
+/* 今日行程為空時的提示文字 */
+.schedule-empty {
+  font: var(--font-body);
+  color: var(--color-text-secondary);
+  padding: var(--space-2) 0;
+}
+
+/* ------------------------------------------------------------
+   9. ⑤ 今日飲食
+------------------------------------------------------------ */
+.diet__kcal {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font: 700 28px/1.2 var(--font-family);
+  margin-bottom: var(--space-2);
+}
+
+.diet__kcal-divider,
+.diet__kcal-unit {
+  font: var(--font-body);
+  color: var(--color-text-secondary);
+}
+
+/* ------------------------------------------------------------
+   10. ⑥ 本月支出
+------------------------------------------------------------ */
+.expense__amount {
+  font: 700 28px/1.2 var(--font-family);
+  margin-bottom: var(--space-2);
+}
+
+.expense__meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+}
+
+.expense__meta-item strong {
+  color: var(--color-text);
+  font-weight: 590;
+}
+
+/* ------------------------------------------------------------
+   11. ⑦ 快捷功能
+------------------------------------------------------------ */
+.quick-actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+  padding: var(--space-1) 0;
+  transition: opacity var(--duration) var(--easing), transform var(--duration) var(--easing);
+}
+
+.quick-action:active {
+  opacity: 0.6;
+  transform: scale(0.96);
+}
+
+.quick-action__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--color-divider);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+}
+
+.quick-action__label {
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+}
+
+/* ------------------------------------------------------------
+   12. Bottom Tab（固定底部導覽）
+------------------------------------------------------------ */
+.bottom-tab {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--bottom-tab-height) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(0, 0, 0, 0.92);
+  border-top: 1px solid var(--color-divider);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 20;
+}
+
+.bottom-tab__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  transition: color var(--duration) var(--easing);
+}
+
+.bottom-tab__item.is-active {
+  color: var(--color-text);
+}
+
+.bottom-tab__label {
+  font: 400 11px/1 var(--font-family);
+}
+
+/* 中央「＋」按鈕，視覺上略為放大並反白突出 */
+.bottom-tab__item--add {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  transform: translateY(-4px);
+  transition: transform var(--duration) var(--easing), opacity var(--duration) var(--easing);
+}
+
+.bottom-tab__item--add:active {
+  transform: translateY(-4px) scale(0.92);
+  opacity: 0.85;
+}
+
+/* ------------------------------------------------------------
+   13. 動畫工具類（僅允許 Fade / Slide / Scale，速度統一 250ms）
+------------------------------------------------------------ */
+.fade-in {
+  animation: fade-in var(--duration) var(--easing);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.slide-up {
+  animation: slide-up var(--duration) var(--easing);
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.scale-in {
+  animation: scale-in var(--duration) var(--easing);
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ============================================================
+   Phase 2 — Calendar 月曆 / Bottom Sheet / 新增事件表單
+   以下皆延續既有 Design Tokens，未新增任何色彩或字級。
+============================================================ */
+
+/* ------------------------------------------------------------
+   14. Calendar 版面容器
+------------------------------------------------------------ */
+.calendar-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-header-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calendar-title {
+  font: var(--font-title);
+}
+
+.calendar-nav {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--color-divider);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity var(--duration) var(--easing);
+}
+
+.calendar-nav:active {
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------------------
+   15. 星期標頭列
+------------------------------------------------------------ */
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-half);
+}
+
+.calendar-weekdays span {
+  text-align: center;
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+}
+
+/* ------------------------------------------------------------
+   16. 日期格子
+------------------------------------------------------------ */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-half);
+}
+
+.calendar-day {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  transition: background var(--duration) var(--easing), color var(--duration) var(--easing);
+}
+
+.calendar-day__number {
+  font: 400 15px/1 var(--font-family);
+}
+
+.calendar-day.is-other-month {
+  color: var(--color-text-secondary);
+  opacity: 0.4;
+}
+
+.calendar-day.is-today .calendar-day__number {
+  font-weight: 590;
+}
+
+.calendar-day.is-today {
+  border: 1px solid var(--color-text);
+}
+
+.calendar-day.is-selected {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.calendar-day.is-selected.is-today {
+  border-color: transparent;
+}
+
+/* 事件小圓點 */
+.calendar-day__dot {
+  position: absolute;
+  bottom: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+/* ------------------------------------------------------------
+   17. Bottom Sheet 共用樣式
+------------------------------------------------------------ */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  z-index: 30;
+  animation: fade-in var(--duration) var(--easing);
+}
+
+.sheet-overlay[hidden] {
+  display: none;
+}
+
+.bottom-sheet {
+  position: relative;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--color-card);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  padding: var(--space-3);
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+}
+
+.sheet-handle {
+  display: block;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-divider);
+  margin: 0 auto var(--space-3);
+}
+
+.sheet-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.sheet-header {
+  margin-bottom: var(--space-3);
+}
+
+.sheet-date {
+  font: var(--font-title);
+}
+
+.sheet-weekday {
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.sheet-section {
+  margin-bottom: var(--space-3);
+}
+
+.sheet-section__title {
+  font: var(--font-eyebrow);
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.sheet-event-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-event-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-1);
+  row-gap: 2px;
+  min-height: 44px;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-divider);
+  transition: opacity var(--duration) var(--easing);
+}
+
+.sheet-event-item:last-child {
+  border-bottom: none;
+}
+
+.sheet-event-item:active {
+  opacity: 0.6;
+}
+
+.sheet-event-item__category {
+  order: 1;
+  font: 400 11px/1 var(--font-family);
+  color: var(--color-text-secondary);
+  background: var(--color-divider);
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.sheet-event-item__title {
+  order: 2;
+  font: var(--font-body);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-event-item__time {
+  order: 3;
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+/* 倒數天數若與標題同一行放不下，會自動換到下一行且靠右對齊 */
+.sheet-event-item__countdown {
+  order: 4;
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-basis: 100%;
+  text-align: right;
+}
+
+.sheet-event-empty {
+  font: var(--font-body);
+  color: var(--color-text-secondary);
+  padding: var(--space-1) 0;
+}
+
+.sheet-add-btn {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+/* ------------------------------------------------------------
+   18. 新增事件表單
+------------------------------------------------------------ */
+.event-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+
+.form-field__label {
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+}
+
+.form-field input[type="text"],
+.form-field input[type="date"],
+.form-field input[type="time"],
+.form-field textarea {
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text);
+  font: var(--font-body);
+  transition: border-color var(--duration) var(--easing);
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+  outline: none;
+  border-color: var(--color-text);
+}
+
+.form-field textarea {
+  resize: none;
+}
+
+.category-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.category-chip {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  font: var(--font-caption);
+  transition: background var(--duration) var(--easing), color var(--duration) var(--easing), border-color var(--duration) var(--easing);
+}
+
+.category-chip.is-active {
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-color: transparent;
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* ------------------------------------------------------------
+   19. 按鈕共用樣式（sheet 內使用）
+------------------------------------------------------------ */
+.btn {
+  flex: 1;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 590 16px/1 var(--font-family);
+  transition: opacity var(--duration) var(--easing), transform var(--duration) var(--easing);
+}
+
+.btn:active {
+  opacity: 0.8;
+  transform: scale(0.98);
+}
+
+.btn--primary {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.btn--secondary {
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  color: var(--color-text);
+}
+
+/* 刪除入口：僅編輯模式顯示，維持黑白風格，以留白與外框區分而非色彩 */
+.btn--ghost-danger {
+  width: 100%;
+  height: 44px;
+  margin-top: var(--space-2);
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  color: var(--color-text-secondary);
+}
+
+.btn--ghost-danger[hidden] {
+  display: none;
+}
+
+/* App 內建刪除確認列，取代瀏覽器原生 confirm() */
+.delete-confirm {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+}
+
+.delete-confirm[hidden] {
+  display: none;
+}
+
+.delete-confirm__text {
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.delete-confirm__actions {
+  display: flex;
+  gap: var(--space-2);
+}
