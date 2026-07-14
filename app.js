@@ -11,8 +11,9 @@
    - EventsModule    事件資料的完整 CRUD（新增／查詢／更新／刪除）
    - DataModule      提供 Dashboard 所需資料，無資料時回傳 isEmpty 標記
    - DashboardModule 依 isEmpty 決定渲染「內容」或「空狀態」
-   - CalendarModule  月視圖渲染與月份切換
-   - SheetModule     「日期詳情」與「新增／編輯事件」兩個 Bottom Sheet
+   - CalendarModule  月視圖渲染與月份切換（Apple Calendar 風格）
+   - CalendarDetailModule 月曆下方固定日期詳情區（取代原本的 Bottom Sheet）
+   - SheetModule     新增／編輯事件的 Bottom Sheet
    - ViewModule      切換「首頁」與「月曆」畫面，不做頁面跳轉
    - ToastModule     輕量提示訊息，取代瀏覽器原生 alert()
    - InteractionModule 綁定所有使用者互動
@@ -38,15 +39,14 @@ function diffInDays(fromStr, toStr) {
   return Math.round((to - from) / (1000 * 60 * 60 * 24));
 }
 
-/** 將 Date 物件格式化為「7月14日」樣式，供 Bottom Sheet 顯示 */
-function formatDateDisplay(date) {
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
-}
-
-/** 將 Date 物件轉為中文星期，供 Bottom Sheet 顯示 */
-function formatWeekdayDisplay(date) {
-  const labels = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-  return labels[date.getDay()];
+/** 將 Date 物件格式化為「Tue, Jul 14, 2026」樣式，供月曆詳情區標題使用 */
+function formatFullDateDisplay(date) {
+  const weekdayShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
+  const monthShort = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ][date.getMonth()];
+  return `${weekdayShort}, ${monthShort} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
 /** 事件分類的顯示標籤 */
@@ -453,11 +453,20 @@ const DashboardModule = (() => {
 
 /* ------------------------------------------------------------
    CalendarModule
-   月視圖狀態管理與渲染。沒有事件的日期不會加上任何標記，
-   因為 EventsModule 在空資料狀態下 hasEventsOnDate 恆為 false。
+   月視圖狀態管理與渲染（Apple Calendar 風格重新設計）：
+   - 週一為首（M T W T F S S）
+   - 標頭顯示年份＋超大月份縮寫
+   - 月曆格子不使用格線／方框，事件僅以最多三個小圓點表示
+   - 支援左右滑動切換月份（觸控），沒有事件的日期不加任何標記
 ------------------------------------------------------------ */
 const CalendarModule = (() => {
-  const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
+  const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"]; // 週一為首
+  const MONTH_LABELS = [
+    "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+  ];
+  const MAX_DOTS = 3; // 事件最多顯示三個小圓點
+  const SWIPE_THRESHOLD_PX = 40; // 判定為左右滑動的最小水平位移
 
   const state = {
     year: new Date().getFullYear(),
@@ -465,9 +474,14 @@ const CalendarModule = (() => {
     selectedDate: formatDateISO(new Date()),
   };
 
+  /** 週一為首的星期索引（Monday=0 ... Sunday=6） */
+  function mondayFirstIndex(jsDay) {
+    return (jsDay + 6) % 7;
+  }
+
   function buildMonthMatrix(year, month) {
     const firstDay = new Date(year, month, 1);
-    const startWeekday = firstDay.getDay();
+    const startWeekday = mondayFirstIndex(firstDay.getDay());
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
 
@@ -489,8 +503,10 @@ const CalendarModule = (() => {
   }
 
   function renderHeader() {
-    const titleEl = document.getElementById("calendar-title");
-    if (titleEl) titleEl.textContent = `${state.year}年${state.month + 1}月`;
+    const yearEl = document.getElementById("calendar-year");
+    const monthEl = document.getElementById("calendar-month");
+    if (yearEl) yearEl.textContent = String(state.year);
+    if (monthEl) monthEl.textContent = MONTH_LABELS[state.month];
   }
 
   function renderGrid() {
@@ -506,11 +522,11 @@ const CalendarModule = (() => {
       const isCurrentMonth = cellDate.getMonth() === state.month;
       const isToday = dateStr === todayStr;
       const isSelected = dateStr === state.selectedDate;
-      const hasEvents = EventsModule.hasEventsOnDate(dateStr);
+      const dotCount = Math.min(EventsModule.getByDate(dateStr).length, MAX_DOTS);
 
       const cellBtn = document.createElement("button");
       cellBtn.type = "button";
-      cellBtn.className = "calendar-day";
+      cellBtn.className = "cal-day";
       if (!isCurrentMonth) cellBtn.classList.add("is-other-month");
       if (isToday) cellBtn.classList.add("is-today");
       if (isSelected) cellBtn.classList.add("is-selected");
@@ -518,9 +534,13 @@ const CalendarModule = (() => {
       cellBtn.setAttribute("role", "gridcell");
       cellBtn.setAttribute("aria-label", dateStr);
 
+      const dotsHtml = dotCount > 0
+        ? `<span class="cal-day__dots" aria-hidden="true">${'<span class="cal-day__dot"></span>'.repeat(dotCount)}</span>`
+        : '<span class="cal-day__dots" aria-hidden="true"></span>';
+
       cellBtn.innerHTML = `
-        <span class="calendar-day__number">${cellDate.getDate()}</span>
-        ${hasEvents ? '<span class="calendar-day__dot" aria-hidden="true"></span>' : ""}
+        <span class="cal-day__number">${cellDate.getDate()}</span>
+        ${dotsHtml}
       `;
       gridEl.appendChild(cellBtn);
     });
@@ -549,6 +569,16 @@ const CalendarModule = (() => {
     render();
   }
 
+  /** 回到今天所在月份，並選取今天 */
+  function goToToday() {
+    const now = new Date();
+    state.year = now.getFullYear();
+    state.month = now.getMonth();
+    state.selectedDate = formatDateISO(now);
+    render();
+    CalendarDetailModule.render(state.selectedDate);
+  }
+
   function selectDate(dateStr) {
     state.selectedDate = dateStr;
     render();
@@ -558,76 +588,145 @@ const CalendarModule = (() => {
     return state.selectedDate;
   }
 
+  /** 綁定月曆格子區域的左右滑動手勢，切換上一個／下一個月 */
+  function bindSwipeGesture() {
+    const gridEl = document.getElementById("calendar-grid");
+    if (!gridEl) return;
+
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    gridEl.addEventListener("touchstart", (event) => {
+      if (event.touches.length !== 1) return;
+      startX = event.touches[0].clientX;
+      startY = event.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    gridEl.addEventListener("touchend", (event) => {
+      if (!tracking) return;
+      tracking = false;
+      const endX = event.changedTouches[0].clientX;
+      const endY = event.changedTouches[0].clientY;
+      const deltaX = endX - startX;
+      const deltaY = endY - startY;
+
+      // 水平位移明顯大於垂直位移，才視為切換月份的滑動手勢，
+      // 避免與一般垂直捲動頁面互相干擾。
+      if (Math.abs(deltaX) > SWIPE_THRESHOLD_PX && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+        if (deltaX < 0) {
+          goToNextMonth();
+        } else {
+          goToPrevMonth();
+        }
+      }
+    }, { passive: true });
+  }
+
   function init() {
     renderWeekdayHeader();
     render();
+    bindSwipeGesture();
   }
 
-  return { init, render, goToPrevMonth, goToNextMonth, selectDate, getSelectedDate };
+  return {
+    init,
+    render,
+    goToPrevMonth,
+    goToNextMonth,
+    goToToday,
+    selectDate,
+    getSelectedDate,
+  };
+})();
+
+/* ------------------------------------------------------------
+   CalendarDetailModule
+   月曆下方固定的日期詳情區（取代原本的 Bottom Sheet）。
+   隨頁面正常捲動，不使用彈出遮罩，選取日期變更時直接更新內容。
+------------------------------------------------------------ */
+const CalendarDetailModule = (() => {
+  function render(dateStr) {
+    const dateObj = new Date(`${dateStr}T00:00:00`);
+    const dateEl = document.getElementById("calendar-detail-date");
+    if (dateEl) dateEl.textContent = formatFullDateDisplay(dateObj);
+
+    renderTodayEvents(dateStr);
+    renderUpcomingEvents(dateStr);
+  }
+
+  function renderTodayEvents(dateStr) {
+    const events = EventsModule.getByDate(dateStr);
+    const listEl = document.getElementById("calendar-detail-events");
+    const emptyEl = document.getElementById("calendar-detail-empty");
+    if (!listEl || !emptyEl) return;
+
+    listEl.innerHTML = "";
+
+    if (events.length === 0) {
+      listEl.hidden = true;
+      emptyEl.hidden = false;
+      return;
+    }
+
+    listEl.hidden = false;
+    emptyEl.hidden = true;
+
+    events.forEach((event) => {
+      listEl.appendChild(buildEventRow(event));
+    });
+  }
+
+  function renderUpcomingEvents(dateStr) {
+    const groupEl = document.getElementById("calendar-detail-upcoming-group");
+    const listEl = document.getElementById("calendar-detail-upcoming");
+    if (!groupEl || !listEl) return;
+
+    const upcoming = EventsModule.getUpcoming(dateStr, 5);
+    listEl.innerHTML = "";
+
+    if (upcoming.length === 0) {
+      groupEl.hidden = true;
+      return;
+    }
+
+    groupEl.hidden = false;
+    upcoming.forEach((event) => {
+      listEl.appendChild(buildEventRow(event, dateStr));
+    });
+  }
+
+  /** 建立單一事件列（時間＋標題，近期事件額外附上倒數天數），點擊可編輯 */
+  function buildEventRow(event, countdownFromDateStr = null) {
+    const li = document.createElement("li");
+    li.className = "cal-detail__event";
+    li.dataset.id = event.id;
+    li.tabIndex = 0;
+    li.setAttribute("role", "button");
+    li.setAttribute("aria-label", `編輯事件：${event.title}`);
+
+    const countdownHtml = countdownFromDateStr
+      ? `<span class="cal-detail__event-countdown">${diffInDays(countdownFromDateStr, event.date)}天後</span>`
+      : "";
+
+    li.innerHTML = `
+      <span class="cal-detail__event-time">${event.time || "全天"}</span>
+      <span class="cal-detail__event-title">${event.title}</span>
+      ${countdownHtml}
+    `;
+    return li;
+  }
+
+  return { render };
 })();
 
 /* ------------------------------------------------------------
    SheetModule
-   「日期詳情」與「新增／編輯事件」兩個 Bottom Sheet。
+   新增／編輯事件的 Bottom Sheet（日期詳情已改為固定資訊區，
+   不再使用彈出式 Sheet，相關邏輯移至 CalendarDetailModule）。
 ------------------------------------------------------------ */
 const SheetModule = (() => {
-  function openDateSheet(dateStr) {
-    const overlay = document.getElementById("date-sheet-overlay");
-    if (!overlay) return;
-
-    const dateObj = new Date(`${dateStr}T00:00:00`);
-    document.getElementById("sheet-date").textContent = formatDateDisplay(dateObj);
-    document.getElementById("sheet-weekday").textContent = formatWeekdayDisplay(dateObj);
-
-    renderEventList("sheet-events", EventsModule.getByDate(dateStr), "今天沒有事件");
-
-    const upcoming = EventsModule.getUpcoming(dateStr, 5);
-    renderEventList("sheet-countdown-events", upcoming, "近期沒有其他事件", dateStr);
-
-    overlay.hidden = false;
-    overlay.dataset.date = dateStr;
-  }
-
-  function renderEventList(listElId, events, emptyText, countdownFromDateStr = null) {
-    const listEl = document.getElementById(listElId);
-    if (!listEl) return;
-    listEl.innerHTML = "";
-
-    if (events.length === 0) {
-      const li = document.createElement("li");
-      li.className = "sheet-event-empty";
-      li.textContent = emptyText;
-      listEl.appendChild(li);
-      return;
-    }
-
-    events.forEach((event) => {
-      const li = document.createElement("li");
-      li.className = "sheet-event-item";
-      li.dataset.id = event.id;
-      li.tabIndex = 0;
-      li.setAttribute("role", "button");
-      li.setAttribute("aria-label", `編輯事件：${event.title}`);
-
-      const countdownHtml = countdownFromDateStr
-        ? `<span class="sheet-event-item__countdown">還有 ${diffInDays(countdownFromDateStr, event.date)} 天</span>`
-        : "";
-
-      li.innerHTML = `
-        <span class="sheet-event-item__category">${CATEGORY_LABELS[event.category] || "其他"}</span>
-        <span class="sheet-event-item__title">${event.title}</span>
-        <span class="sheet-event-item__time">${event.time || ""}</span>
-        ${countdownHtml}
-      `;
-      listEl.appendChild(li);
-    });
-  }
-
-  function closeDateSheet() {
-    const overlay = document.getElementById("date-sheet-overlay");
-    if (overlay) overlay.hidden = true;
-  }
-
   function openEventForm(prefillDateStr, editEvent = null) {
     const overlay = document.getElementById("event-form-overlay");
     const form = document.getElementById("event-form");
@@ -692,8 +791,6 @@ const SheetModule = (() => {
   }
 
   return {
-    openDateSheet,
-    closeDateSheet,
     openEventForm,
     closeEventForm,
     setActiveCategoryChip,
@@ -714,6 +811,7 @@ const ViewModule = (() => {
     });
     if (viewName === "calendar") {
       CalendarModule.render();
+      CalendarDetailModule.render(CalendarModule.getSelectedDate());
     }
   }
 
@@ -861,68 +959,60 @@ const InteractionModule = (() => {
     }
   }
 
-  function bindCalendarNav() {
-    document.getElementById("calendar-prev")?.addEventListener("click", () => {
-      CalendarModule.goToPrevMonth();
+  /** 月曆標頭：Today（回到今天）／搜尋／設定（後兩者尚未開放功能，僅提示） */
+  function bindCalendarHeaderActions() {
+    document.getElementById("calendar-today-btn")?.addEventListener("click", () => {
+      CalendarModule.goToToday();
     });
-    document.getElementById("calendar-next")?.addEventListener("click", () => {
-      CalendarModule.goToNextMonth();
+    document.getElementById("calendar-search-btn")?.addEventListener("click", () => {
+      ToastModule.show("搜尋功能尚未開放");
+    });
+    document.getElementById("calendar-settings-btn")?.addEventListener("click", () => {
+      ToastModule.show("設定功能尚未開放");
     });
   }
 
+  /** 點擊月曆日期：選取該日並同步更新下方固定詳情區（不再彈出 Bottom Sheet） */
   function bindCalendarGrid() {
     const gridEl = document.getElementById("calendar-grid");
     if (!gridEl) return;
 
     gridEl.addEventListener("click", (event) => {
-      const dayBtn = event.target.closest(".calendar-day");
+      const dayBtn = event.target.closest(".cal-day");
       if (!dayBtn) return;
       const dateStr = dayBtn.dataset.date;
       CalendarModule.selectDate(dateStr);
-      SheetModule.openDateSheet(dateStr);
+      CalendarDetailModule.render(dateStr);
     });
   }
 
-  function bindDateSheet() {
-    const overlay = document.getElementById("date-sheet-overlay");
-    if (!overlay) return;
+  /** 固定日期詳情區：點擊事件列開啟編輯、點「＋ 新增事件」開啟新增表單 */
+  function bindCalendarDetail() {
+    const detailEl = document.getElementById("calendar-detail");
+    if (!detailEl) return;
 
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) SheetModule.closeDateSheet();
+    const openEditor = (target) => {
+      const item = target.closest(".cal-detail__event");
+      if (!item || !item.dataset.id) return;
+      const eventData = EventsModule.getById(item.dataset.id);
+      if (eventData) SheetModule.openEventForm(eventData.date, eventData);
+    };
+
+    detailEl.addEventListener("click", (event) => {
+      if (event.target.closest("#calendar-add-event-btn")) {
+        SheetModule.openEventForm(CalendarModule.getSelectedDate());
+        return;
+      }
+      openEditor(event.target);
     });
 
-    document.getElementById("date-sheet-close")?.addEventListener("click", () => {
-      SheetModule.closeDateSheet();
-    });
-
-    document.getElementById("sheet-add-event-btn")?.addEventListener("click", () => {
-      const dateStr = overlay.dataset.date;
-      SheetModule.closeDateSheet();
-      SheetModule.openEventForm(dateStr);
-    });
-  }
-
-  function bindSheetEventLists() {
-    ["sheet-events", "sheet-countdown-events"].forEach((listId) => {
-      const listEl = document.getElementById(listId);
-      if (!listEl) return;
-
-      const openEditor = (target) => {
-        const item = target.closest(".sheet-event-item");
-        if (!item || !item.dataset.id) return;
-        const eventData = EventsModule.getById(item.dataset.id);
-        if (!eventData) return;
-        SheetModule.closeDateSheet();
-        SheetModule.openEventForm(eventData.date, eventData);
-      };
-
-      listEl.addEventListener("click", (event) => openEditor(event.target));
-      listEl.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
+    detailEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        if (event.target.closest(".cal-detail__event")) {
           event.preventDefault();
           openEditor(event.target);
         }
-      });
+      }
     });
   }
 
@@ -969,6 +1059,7 @@ const InteractionModule = (() => {
 
       DashboardModule.renderAll();
       CalendarModule.render();
+      CalendarDetailModule.render(CalendarModule.getSelectedDate());
     });
 
     document.getElementById("event-form-delete")?.addEventListener("click", () => {
@@ -986,6 +1077,7 @@ const InteractionModule = (() => {
 
       DashboardModule.renderAll();
       CalendarModule.render();
+      CalendarDetailModule.render(CalendarModule.getSelectedDate());
     });
   }
 
@@ -995,10 +1087,9 @@ const InteractionModule = (() => {
     bindPlaceholderCardActions();
     bindQuickActions();
     bindBottomTab();
-    bindCalendarNav();
+    bindCalendarHeaderActions();
     bindCalendarGrid();
-    bindDateSheet();
-    bindSheetEventLists();
+    bindCalendarDetail();
     bindEventForm();
   }
 
@@ -1025,6 +1116,7 @@ const App = (() => {
     BootstrapModule.initEmptyStorageIfNeeded(); // 僅建立空結構，不寫入任何範例資料
     DashboardModule.renderAll();
     CalendarModule.init();
+    CalendarDetailModule.render(CalendarModule.getSelectedDate());
     InteractionModule.bindAll();
     registerServiceWorker();
   }

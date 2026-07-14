@@ -177,63 +177,68 @@
     </main>
 
     <!-- ========================================
-         View 2／Calendar
-         月視圖 + 日期選取，詳情以 Bottom Sheet 呈現，
-         不跳轉頁面。沒有事件的日期不顯示任何標記。
+         View 2／Calendar（重新設計：Apple Calendar 風格）
+         大標題＋無格線月視圖＋固定日期詳情區（非 Bottom Sheet）。
+         事件在月曆格子內僅以小圓點表示，不顯示文字。
+         沒有事件的日期不顯示任何標記。
     ========================================= -->
     <main class="view calendar-view fade-in" id="view-calendar" data-view="calendar" hidden>
 
-      <section class="card calendar-header-card" aria-label="月曆導覽">
-        <div class="calendar-header">
-          <button class="calendar-nav" id="calendar-prev" type="button" aria-label="上個月">
-            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      <!-- 月曆標頭：左側年份＋超大月份，右側 Today／搜尋／設定 -->
+      <header class="cal-header">
+        <div class="cal-header__title">
+          <p class="cal-header__year" id="calendar-year">2026</p>
+          <h1 class="cal-header__month" id="calendar-month">JUL</h1>
+        </div>
+        <div class="cal-header__actions">
+          <button class="cal-pill" id="calendar-today-btn" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 7l-5 5 5 5M4.5 12H15a5 5 0 0 0 0-10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+            <span>Today</span>
           </button>
-          <h2 class="calendar-title" id="calendar-title">2026年7月</h2>
-          <button class="calendar-nav" id="calendar-next" type="button" aria-label="下個月">
-            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          <button class="cal-icon-btn" id="calendar-search-btn" type="button" aria-label="搜尋">
+            <svg viewBox="0 0 24 24" width="19" height="19"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M20 20l-4.3-4.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+          <button class="cal-icon-btn" id="calendar-settings-btn" type="button" aria-label="設定">
+            <svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.6"/><path d="M12 4v2.2M12 17.8V20M4 12h2.2M17.8 12H20M6.3 6.3l1.6 1.6M16.1 16.1l1.6 1.6M6.3 17.7l1.6-1.6M16.1 7.9l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           </button>
         </div>
-        <div class="calendar-weekdays" id="calendar-weekdays" aria-hidden="true">
-          <!-- 星期標籤由 app.js 動態渲染 -->
+      </header>
+
+      <!-- 星期標頭：週一為首，不加粗、灰色小字 -->
+      <div class="cal-weekdays" id="calendar-weekdays" aria-hidden="true">
+        <!-- 星期標籤由 app.js 動態渲染 -->
+      </div>
+
+      <!-- 月曆格子：不使用格線／卡片／方框，以大量留白呈現 -->
+      <div class="cal-grid" id="calendar-grid" role="grid" aria-label="月曆日期">
+        <!-- 日期格子由 app.js 動態渲染，支援左右滑動切換月份 -->
+      </div>
+
+      <!-- 固定日期詳情區：跟隨頁面捲動，非彈出式 Bottom Sheet -->
+      <section class="cal-detail" id="calendar-detail" aria-label="選取日期詳情">
+        <p class="cal-detail__date" id="calendar-detail-date">Tue, Jul 14, 2026</p>
+
+        <div class="cal-detail__group" id="calendar-detail-events-group">
+          <ul class="cal-detail__list" id="calendar-detail-events"></ul>
         </div>
-        <div class="calendar-grid" id="calendar-grid" role="grid" aria-label="月曆日期">
-          <!-- 日期格子由 app.js 動態渲染 -->
+
+        <div class="cal-detail__empty" id="calendar-detail-empty" hidden>
+          <p class="cal-detail__empty-icon" aria-hidden="true">📅</p>
+          <p class="cal-detail__empty-text">這天還沒有任何事件</p>
         </div>
-      </section>
 
-    </main>
+        <!-- 近期事件（原「倒數事件」）：僅在有資料時顯示，維持次要層級 -->
+        <div class="cal-detail__group cal-detail__group--upcoming" id="calendar-detail-upcoming-group" hidden>
+          <p class="cal-detail__group-title">Upcoming</p>
+          <ul class="cal-detail__list cal-detail__list--upcoming" id="calendar-detail-upcoming"></ul>
+        </div>
 
-    <!-- ========================================
-         Bottom Sheet 1／日期詳情
-         點擊日期後顯示，不跳轉頁面
-    ========================================= -->
-    <div class="sheet-overlay" id="date-sheet-overlay" hidden>
-      <section class="bottom-sheet slide-up" id="date-sheet" aria-label="日期詳情">
-        <span class="sheet-handle" aria-hidden="true"></span>
-        <button class="sheet-close" id="date-sheet-close" type="button" aria-label="關閉">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        </button>
-
-        <header class="sheet-header">
-          <p class="sheet-date" id="sheet-date">7月14日</p>
-          <p class="sheet-weekday" id="sheet-weekday">星期二</p>
-        </header>
-
-        <section class="sheet-section">
-          <h3 class="sheet-section__title">今日事件</h3>
-          <ul class="sheet-event-list" id="sheet-events"></ul>
-        </section>
-
-        <section class="sheet-section">
-          <h3 class="sheet-section__title">倒數事件</h3>
-          <ul class="sheet-event-list sheet-event-list--countdown" id="sheet-countdown-events"></ul>
-        </section>
-
-        <button class="btn btn--primary sheet-add-btn" id="sheet-add-event-btn" type="button">
+        <button class="cal-pill cal-pill--add" id="calendar-add-event-btn" type="button">
           ＋ 新增事件
         </button>
       </section>
-    </div>
+
+    </main>
 
     <!-- ========================================
          Bottom Sheet 2／新增／編輯事件表單

@@ -558,119 +558,283 @@ input, textarea {
 }
 
 /* ------------------------------------------------------------
-   14. Calendar 版面容器
+   14. Calendar — 版面容器（不使用卡片／格線／方框）
 ------------------------------------------------------------ */
 .calendar-view {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
 }
 
-.calendar-header-card {
+/* 標頭：左側年份＋超大月份，右側 Today／搜尋／設定 */
+.cal-header {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
-.calendar-header {
+.cal-header__year {
+  font: 590 15px/1 var(--font-family);
+  color: var(--color-text-secondary);
+  margin-bottom: 2px;
+}
+
+.cal-header__month {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", var(--font-family);
+  font-weight: 800;
+  font-size: clamp(56px, 16vw, 84px);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+}
+
+.cal-header__actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-1);
+  padding-top: 4px;
+  flex-shrink: 0;
 }
 
-.calendar-title {
-  font: var(--font-title);
-}
-
-.calendar-nav {
-  width: 40px;
-  height: 40px;
+/* Capsule 按鈕：Today／新增事件 共用 */
+.cal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--color-divider);
+  border: 1px solid var(--color-divider);
+  background: transparent;
   color: var(--color-text);
+  font: 590 14px/1 var(--font-family);
+  transition: opacity var(--duration) var(--easing), transform var(--duration) var(--easing), background var(--duration) var(--easing);
+}
+
+.cal-pill:active {
+  opacity: 0.6;
+  transform: scale(0.97);
+}
+
+/* 圖示按鈕：搜尋／設定，無背景、無外框，維持極簡 */
+.cal-icon-btn {
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--color-text);
   transition: opacity var(--duration) var(--easing);
 }
 
-.calendar-nav:active {
-  opacity: 0.6;
+.cal-icon-btn:active {
+  opacity: 0.5;
 }
 
 /* ------------------------------------------------------------
-   15. 星期標頭列
+   15. 星期標頭列（週一為首，不加粗、灰色小字）
 ------------------------------------------------------------ */
-.calendar-weekdays {
+.cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: var(--space-half);
 }
 
-.calendar-weekdays span {
+.cal-weekdays span {
   text-align: center;
-  font: var(--font-caption);
+  font: 500 12px/1 var(--font-family);
+  letter-spacing: 0.02em;
   color: var(--color-text-secondary);
 }
 
 /* ------------------------------------------------------------
-   16. 日期格子
+   16. 月曆格子（無格線／無方框，以留白構成版面，支援左右滑動切月）
 ------------------------------------------------------------ */
-.calendar-grid {
+.cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: var(--space-half);
+  row-gap: var(--space-4);
+  column-gap: var(--space-1);
+  touch-action: pan-y; /* 保留垂直捲動，水平方向由 JS 處理滑動切月 */
 }
 
-.calendar-day {
-  position: relative;
-  aspect-ratio: 1 / 1;
+.cal-day {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
+  gap: 6px;
   color: var(--color-text);
-  transition: background var(--duration) var(--easing), color var(--duration) var(--easing);
+  padding: var(--space-1) 0;
 }
 
-.calendar-day__number {
-  font: 400 15px/1 var(--font-family);
+.cal-day__number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: clamp(19px, 5.4vw, 22px);
+  font-weight: 600;
+  transition: background var(--duration) var(--easing), color var(--duration) var(--easing), box-shadow var(--duration) var(--easing);
 }
 
-.calendar-day.is-other-month {
-  color: var(--color-text-secondary);
+.cal-day.is-other-month .cal-day__number {
   opacity: 0.4;
 }
 
-.calendar-day.is-today .calendar-day__number {
-  font-weight: 590;
-}
-
-.calendar-day.is-today {
-  border: 1px solid var(--color-text);
-}
-
-.calendar-day.is-selected {
+/* 今天：白色實心圓，日期黑色 */
+.cal-day.is-today .cal-day__number {
   background: var(--color-text);
   color: var(--color-bg);
+  font-weight: 700;
 }
 
-.calendar-day.is-selected.is-today {
-  border-color: transparent;
+/* 選取（非今天）：白色細框 */
+.cal-day.is-selected:not(.is-today) .cal-day__number {
+  box-shadow: inset 0 0 0 1.5px var(--color-text);
 }
 
-/* 事件小圓點 */
-.calendar-day__dot {
-  position: absolute;
-  bottom: 6px;
+/* 今天＋選取：保持白色實心，外圍加一圈細框做出區隔 */
+.cal-day.is-today.is-selected .cal-day__number {
+  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4.5px var(--color-text);
+}
+
+/* 事件標記：最多三個小圓點，不顯示文字 */
+.cal-day__dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 4px;
+}
+
+.cal-day__dot {
   width: 4px;
   height: 4px;
-  border-radius: var(--radius-pill);
-  background: currentColor;
+  border-radius: 50%;
+  background: var(--color-text);
+}
+
+.cal-day.is-other-month .cal-day__dot {
+  opacity: 0.4;
 }
 
 /* ------------------------------------------------------------
-   17. Bottom Sheet 共用樣式
+   17. 固定日期詳情區（取代原本的 Bottom Sheet，隨頁面捲動）
+------------------------------------------------------------ */
+.cal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-divider);
+}
+
+.cal-detail__date {
+  font: 700 22px/1.25 var(--font-family);
+}
+
+.cal-detail__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-detail__event {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-divider);
+  transition: opacity var(--duration) var(--easing);
+}
+
+.cal-detail__list .cal-detail__event:last-child {
+  border-bottom: none;
+}
+
+.cal-detail__event:active {
+  opacity: 0.6;
+}
+
+.cal-detail__event-time {
+  font: 590 15px/1 var(--font-family);
+  color: var(--color-text-secondary);
+  min-width: 52px;
+  flex-shrink: 0;
+}
+
+.cal-detail__event-title {
+  font: var(--font-body);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-detail__event-countdown {
+  font: var(--font-caption);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cal-detail__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-4) 0;
+}
+
+.cal-detail__empty[hidden] {
+  display: none;
+}
+
+.cal-detail__empty-icon {
+  font-size: 28px;
+  opacity: 0.6;
+}
+
+.cal-detail__empty-text {
+  font: var(--font-body);
+  color: var(--color-text-secondary);
+}
+
+.cal-detail__group--upcoming {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-divider);
+}
+
+.cal-detail__group--upcoming[hidden] {
+  display: none;
+}
+
+.cal-detail__group-title {
+  font: var(--font-eyebrow);
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.cal-detail__list--upcoming .cal-detail__event-title,
+.cal-detail__list--upcoming .cal-detail__event-time {
+  color: var(--color-text-secondary);
+  font-size: 15px;
+}
+
+.cal-pill--add {
+  align-self: stretch;
+  justify-content: center;
+  height: 48px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-color: transparent;
+  font-size: 15px;
+}
+
+/* ------------------------------------------------------------
+   18. Bottom Sheet 共用樣式
 ------------------------------------------------------------ */
 .sheet-overlay {
   position: fixed;
@@ -720,102 +884,11 @@ input, textarea {
   color: var(--color-text-secondary);
 }
 
-.sheet-header {
-  margin-bottom: var(--space-3);
-}
-
-.sheet-date {
-  font: var(--font-title);
-}
-
-.sheet-weekday {
-  font: var(--font-caption);
-  color: var(--color-text-secondary);
-  margin-top: 4px;
-}
-
-.sheet-section {
-  margin-bottom: var(--space-3);
-}
-
 .sheet-section__title {
   font: var(--font-eyebrow);
   letter-spacing: 0.04em;
   color: var(--color-text-secondary);
   margin-bottom: var(--space-1);
-}
-
-.sheet-event-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.sheet-event-item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  column-gap: var(--space-1);
-  row-gap: 2px;
-  min-height: 44px;
-  padding: var(--space-1) 0;
-  border-bottom: 1px solid var(--color-divider);
-  transition: opacity var(--duration) var(--easing);
-}
-
-.sheet-event-item:last-child {
-  border-bottom: none;
-}
-
-.sheet-event-item:active {
-  opacity: 0.6;
-}
-
-.sheet-event-item__category {
-  order: 1;
-  font: 400 11px/1 var(--font-family);
-  color: var(--color-text-secondary);
-  background: var(--color-divider);
-  padding: 4px 8px;
-  border-radius: var(--radius-pill);
-  flex-shrink: 0;
-}
-
-.sheet-event-item__title {
-  order: 2;
-  font: var(--font-body);
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sheet-event-item__time {
-  order: 3;
-  font: var(--font-caption);
-  color: var(--color-text-secondary);
-  flex-shrink: 0;
-}
-
-/* 倒數天數若與標題同一行放不下，會自動換到下一行且靠右對齊 */
-.sheet-event-item__countdown {
-  order: 4;
-  font: var(--font-caption);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  flex-basis: 100%;
-  text-align: right;
-}
-
-.sheet-event-empty {
-  font: var(--font-body);
-  color: var(--color-text-secondary);
-  padding: var(--space-1) 0;
-}
-
-.sheet-add-btn {
-  width: 100%;
-  margin-top: var(--space-2);
 }
 
 /* ------------------------------------------------------------

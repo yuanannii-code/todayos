@@ -6,7 +6,7 @@
    - 版本號更新時清除舊快取，確保使用者取得最新版本
 ============================================================ */
 
-const CACHE_VERSION = "todayos-v0.1.1-personal";
+const CACHE_VERSION = "todayos-v0.2.0-calendar-redesign";
 
 // App Shell：首次安裝時預先快取的核心檔案
 // 版本號更新時（CACHE_VERSION 改變），activate 階段會自動清除舊快取，
