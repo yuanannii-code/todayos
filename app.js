@@ -1,26 +1,29 @@
 /* ============================================================
    TodayOS — app.js
+   正式／個人測試版：不建立任何 Demo、Sample、Mock、Fake Data。
+   第一次開啟時，所有資料結構皆為空，畫面以 Empty State 呈現，
+   所有內容皆由使用者自行新增。
+
    模組化架構：
    - 工具函式        日期格式化、天數計算等共用邏輯
    - StorageModule   封裝 LocalStorage 讀寫
-   - EventsModule    月曆事件的資料存取（CRUD），Phase 2 新增
-   - DataModule      提供 Dashboard 所需的資料
-                      （今日行程／倒數已改為讀取 EventsModule）
-   - DashboardModule 負責把資料渲染進 DOM（首頁 7 張卡片）
-   - CalendarModule  月視圖渲染與月份切換，Phase 2 新增
-   - SheetModule     日期詳情 / 新增事件 兩個 Bottom Sheet，Phase 2 新增
-   - ViewModule      切換「首頁」與「月曆」畫面，Phase 2 新增
+   - BootstrapModule 首次開啟時，僅建立「空的」資料結構（無任何內容）
+   - EventsModule    事件資料的完整 CRUD（新增／查詢／更新／刪除）
+   - DataModule      提供 Dashboard 所需資料，無資料時回傳 isEmpty 標記
+   - DashboardModule 依 isEmpty 決定渲染「內容」或「空狀態」
+   - CalendarModule  月視圖渲染與月份切換
+   - SheetModule     「日期詳情」與「新增／編輯事件」兩個 Bottom Sheet
+   - ViewModule      切換「首頁」與「月曆」畫面，不做頁面跳轉
+   - ToastModule     輕量提示訊息，取代瀏覽器原生 alert()
    - InteractionModule 綁定所有使用者互動
    - App             進入點，初始化所有模組
 ============================================================ */
 
 /* ------------------------------------------------------------
-   共用工具函式
-   使用 function 宣告（而非 const 箭頭函式）以確保 hoisting，
-   讓其他模組不需在意這些函式在檔案中的實體位置。
+   共用工具函式（function 宣告以確保 hoisting）
 ------------------------------------------------------------ */
 
-/** 將 Date 物件格式化為 "YYYY-MM-DD"，作為事件與比對的標準格式 */
+/** 將 Date 物件格式化為 "YYYY-MM-DD" */
 function formatDateISO(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -46,7 +49,7 @@ function formatWeekdayDisplay(date) {
   return labels[date.getDay()];
 }
 
-/** 事件分類的顯示標籤，供新增/未來擴充（賽事、活動、提醒、其他）沿用 */
+/** 事件分類的顯示標籤 */
 const CATEGORY_LABELS = {
   activity: "活動",
   race: "賽事",
@@ -56,9 +59,7 @@ const CATEGORY_LABELS = {
 
 /* ------------------------------------------------------------
    StorageModule
-   統一的 LocalStorage 存取層。所有模組讀寫資料
-   都應透過這裡，不直接呼叫 localStorage.*，
-   方便日後替換儲存方式（例如改成雲端同步）而不動到業務邏輯。
+   統一的 LocalStorage 存取層，所有模組讀寫資料都透過這裡。
 ------------------------------------------------------------ */
 const StorageModule = (() => {
   const NAMESPACE = "todayos";
@@ -85,21 +86,40 @@ const StorageModule = (() => {
 })();
 
 /* ------------------------------------------------------------
-   EventsModule（Phase 2 新增）
-   月曆事件的唯一資料來源。所有讀取事件的地方
-   （Dashboard、Calendar、Bottom Sheet）都透過這裡存取，
-   確保「今日行程」「倒數」與月曆看到的是同一份資料。
+   BootstrapModule（正式版）
+   第一次開啟時，僅建立「空的」資料結構，不寫入任何內容：
+   events / countdowns / expenses / foods / cycles = []
+   settings = {}
+   若某個 key 已存在（代表非首次開啟，或使用者已有資料），
+   則完全不動，避免覆蓋既有資料。
+------------------------------------------------------------ */
+const BootstrapModule = (() => {
+  const EMPTY_ARRAY_KEYS = ["events", "countdowns", "expenses", "foods", "cycles"];
 
-   事件資料結構（為未來擴充經期／活動／賽事保留彈性）：
+  function initEmptyStorageIfNeeded() {
+    EMPTY_ARRAY_KEYS.forEach((key) => {
+      if (StorageModule.get(key) === null) {
+        StorageModule.set(key, []);
+      }
+    });
+    if (StorageModule.get("settings") === null) {
+      StorageModule.set("settings", {});
+    }
+  }
+
+  return { initEmptyStorageIfNeeded };
+})();
+
+/* ------------------------------------------------------------
+   EventsModule
+   事件資料的唯一資料來源（今日行程／TODAY 倒數／月曆皆讀這裡）。
+   完全不含任何範例資料產生邏輯。
+
+   事件資料結構：
    {
-     id: "evt_xxxxx",
-     title: "字串",
-     date: "YYYY-MM-DD",
-     time: "HH:mm" | null,
-     category: "activity" | "race" | "reminder" | "other",
-     note: "字串" | null,
-     createdAt: ISOString,
-     updatedAt: ISOString
+     id, title, date("YYYY-MM-DD"), time("HH:mm"|null),
+     category("activity"|"race"|"reminder"|"other"),
+     note, createdAt, updatedAt
    }
 ------------------------------------------------------------ */
 const EventsModule = (() => {
@@ -117,7 +137,6 @@ const EventsModule = (() => {
     StorageModule.set(STORAGE_KEY, events);
   }
 
-  /** 新增一筆事件，回傳完整事件物件（含自動產生的 id / 時間戳） */
   function add(event) {
     const events = getAll();
     const now = new Date().toISOString();
@@ -136,12 +155,10 @@ const EventsModule = (() => {
     return newEvent;
   }
 
-  /** 依 id 取得單一事件 */
   function getById(id) {
     return getAll().find((e) => e.id === id) || null;
   }
 
-  /** 更新指定 id 的事件（部分欄位），回傳更新後的完整事件物件 */
   function update(id, changes) {
     const events = getAll();
     const index = events.findIndex((e) => e.id === id);
@@ -156,19 +173,16 @@ const EventsModule = (() => {
     return events[index];
   }
 
-  /** 刪除指定 id 的事件 */
   function remove(id) {
     saveAll(getAll().filter((e) => e.id !== id));
   }
 
-  /** 取得某一天的所有事件，依時間排序（無時間者排最後） */
   function getByDate(dateStr) {
     return getAll()
       .filter((e) => e.date === dateStr)
       .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
   }
 
-  /** 取得某天之後（不含當天）最近的 N 筆事件，依日期排序 */
   function getUpcoming(fromDateStr, limit = 5) {
     return getAll()
       .filter((e) => e.date > fromDateStr)
@@ -176,7 +190,6 @@ const EventsModule = (() => {
       .slice(0, limit);
   }
 
-  /** 取得某分類中，日期 >= 指定日期的最近一筆事件（用於 TODAY 倒數卡） */
   function getNextByCategory(category, fromDateStr) {
     const matches = getAll()
       .filter((e) => e.category === category && e.date >= fromDateStr)
@@ -184,58 +197,8 @@ const EventsModule = (() => {
     return matches[0] || null;
   }
 
-  /** 某一天是否有任何事件（供月曆小圓點使用） */
   function hasEventsOnDate(dateStr) {
     return getAll().some((e) => e.date === dateStr);
-  }
-
-  /**
-   * 首次使用時寫入示範資料，方便立即測試：
-   * - 3 筆今日行程（今天的會議／午餐／健身）
-   * - 2 筆以上倒數事件（東京馬拉松、健康檢查等未來事件）
-   * - 數筆本月範例事件，讓月曆一開始就能看到日期圓點
-   */
-  function seedIfEmpty() {
-    if (getAll().length > 0) return;
-
-    const today = new Date();
-    const nowIso = today.toISOString();
-
-    /** 以「今天 + offsetDays」計算日期字串的小工具 */
-    function dateWithOffset(offsetDays) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + offsetDays);
-      return formatDateISO(d);
-    }
-
-    function buildEvent({ title, offsetDays, time, category, note }) {
-      return {
-        id: generateId(),
-        title,
-        date: dateWithOffset(offsetDays),
-        time: time || null,
-        category,
-        note: note || null,
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      };
-    }
-
-    saveAll([
-      // 今日行程（3 筆）
-      buildEvent({ title: "專案會議", offsetDays: 0, time: "09:00", category: "activity" }),
-      buildEvent({ title: "午餐約會", offsetDays: 0, time: "12:30", category: "activity" }),
-      buildEvent({ title: "健身", offsetDays: 0, time: "18:30", category: "activity" }),
-
-      // 倒數事件（2 筆以上，供 TODAY 卡與倒數事件區塊測試）
-      buildEvent({ title: "東京馬拉松", offsetDays: 24, category: "race" }),
-      buildEvent({ title: "健康檢查", offsetDays: 10, time: "10:00", category: "reminder" }),
-
-      // 本月範例事件，讓月曆一開始就能看到多個日期圓點
-      buildEvent({ title: "朋友聚餐", offsetDays: 5, time: "19:00", category: "activity" }),
-      buildEvent({ title: "繳交報告", offsetDays: 2, category: "reminder" }),
-      buildEvent({ title: "月初回顧", offsetDays: -3, category: "other", note: "示範用的過去事件" }),
-    ]);
   }
 
   return {
@@ -248,16 +211,16 @@ const EventsModule = (() => {
     getUpcoming,
     getNextByCategory,
     hasEventsOnDate,
-    seedIfEmpty,
   };
 })();
 
 /* ------------------------------------------------------------
    DataModule
-   Dashboard 卡片所需的資料來源。
-   getToday() 與 getSchedule() 已改為讀取 EventsModule，
-   其餘（日期天氣／經期／飲食／支出）維持 Phase 1 假資料，
-   待對應功能模組開發後比照 EventsModule 的方式串接。
+   Dashboard 卡片所需的資料來源。每個函式在沒有資料時
+   回傳 { isEmpty: true }，由 DashboardModule 決定顯示空狀態。
+   TODAY 倒數／今日行程讀取真實事件資料（EventsModule）；
+   經期／飲食／支出目前尚無對應的新增功能，因此永遠讀到空陣列，
+   誠實顯示空狀態，不補上任何假數字。
 ------------------------------------------------------------ */
 const DataModule = (() => {
   // 倒數進度條的視覺參考窗口（非精確總天數，僅用於呈現進度感）
@@ -267,9 +230,7 @@ const DataModule = (() => {
     const todayStr = formatDateISO(new Date());
     const nextRace = EventsModule.getNextByCategory("race", todayStr);
 
-    if (!nextRace) {
-      return { daysLeft: 0, eventName: "尚未設定倒數目標", percent: 0 };
-    }
+    if (!nextRace) return { isEmpty: true };
 
     const daysLeft = diffInDays(todayStr, nextRace.date);
     const percent = Math.max(
@@ -277,26 +238,32 @@ const DataModule = (() => {
       Math.min(100, ((COUNTDOWN_WINDOW_DAYS - daysLeft) / COUNTDOWN_WINDOW_DAYS) * 100)
     );
 
-    return { daysLeft, eventName: nextRace.title, percent };
+    return { isEmpty: false, daysLeft, eventName: nextRace.title, percent };
   }
 
+  /** 回傳裝置的實際日期與星期；天氣尚無真實資料來源，固定回傳 null */
   function getDate() {
-    // 之後可改為讀取系統時間 + 天氣 API 快取結果
+    const now = new Date();
+    const weekdayLabelsEn = [
+      "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+    ];
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
     return {
-      dateLabel: "07 / 14",
-      weekday: "Tuesday",
-      temp: "28°C",
-      condition: "Sunny",
+      dateLabel: `${mm} / ${dd}`,
+      weekday: weekdayLabelsEn[now.getDay()],
+      // 之後串接真實天氣 API 時，改成回傳 { temp: "28°C", condition: "Sunny" }，
+      // renderDate() 會自動顯示，不需要再改任何畫面邏輯。
+      weather: null,
     };
   }
 
   function getCycle() {
-    // 之後可改為: return StorageModule.get("cycle");
-    return {
-      currentDay: 12,
-      cycleLength: 28,
-      daysUntilNext: 6,
-    };
+    const cycles = StorageModule.get("cycles") || [];
+    if (cycles.length === 0) return { isEmpty: true };
+    // 保留欄位供未來經期功能開發時使用
+    const latest = cycles[cycles.length - 1];
+    return { isEmpty: false, ...latest };
   }
 
   function getSchedule() {
@@ -309,13 +276,15 @@ const DataModule = (() => {
   }
 
   function getDiet() {
-    // 之後可改為: return StorageModule.get("diet");
-    return { current: 1450, goal: 1800 };
+    const foods = StorageModule.get("foods") || [];
+    if (foods.length === 0) return { isEmpty: true };
+    return { isEmpty: false, ...foods[foods.length - 1] };
   }
 
   function getExpense() {
-    // 之後可改為: return StorageModule.get("expense");
-    return { amount: 12850, budget: 20000, remaining: 7150 };
+    const expenses = StorageModule.get("expenses") || [];
+    if (expenses.length === 0) return { isEmpty: true };
+    return { isEmpty: false, ...expenses[expenses.length - 1] };
   }
 
   return {
@@ -330,11 +299,10 @@ const DataModule = (() => {
 
 /* ------------------------------------------------------------
    DashboardModule
-   負責把 DataModule 提供的資料渲染進對應的 DOM 元素。
-   每個 render 函式只處理「一張卡片」，職責單一。
+   每個 render 函式依 isEmpty 切換「內容區塊」與「空狀態區塊」，
+   空狀態時不放入任何假資料，只有提示文字與新增按鈕。
 ------------------------------------------------------------ */
 const DashboardModule = (() => {
-  /** 將百分比套用到水平進度條 */
   function setProgressBar(fillElId, wrapElId, percent) {
     const fillEl = document.getElementById(fillElId);
     const wrapEl = document.getElementById(wrapElId);
@@ -343,40 +311,63 @@ const DashboardModule = (() => {
     if (wrapEl) wrapEl.setAttribute("aria-valuenow", String(Math.round(clamped)));
   }
 
-  /** 渲染 ① TODAY 卡（資料來源已改為 EventsModule 中最近的賽事） */
+  /** ① TODAY 卡 */
   function renderToday() {
     const data = DataModule.getToday();
+    const contentEl = document.getElementById("today-content");
+    const emptyEl = document.getElementById("today-empty");
+
+    if (data.isEmpty) {
+      contentEl.hidden = true;
+      emptyEl.hidden = false;
+      return;
+    }
+
+    contentEl.hidden = false;
+    emptyEl.hidden = true;
     document.getElementById("today-days-left").textContent = data.daysLeft;
     document.getElementById("today-event-name").textContent = data.eventName;
     setProgressBar("today-progress-fill", "today-progress", data.percent);
   }
 
-  /** 渲染 ② 日期卡 */
+  /** ② 日期／天氣（併入 TODAY 卡右側）：日期永遠有值，天氣尚無資料來源前維持隱藏 */
   function renderDate() {
     const data = DataModule.getDate();
     document.getElementById("date-number").textContent = data.dateLabel;
     document.getElementById("date-weekday").textContent = data.weekday;
-    document.getElementById("weather-temp").textContent = data.temp;
-    document.getElementById("weather-condition").textContent = data.condition;
+
+    const weatherEl = document.getElementById("date-weather");
+    if (data.weather) {
+      weatherEl.hidden = false;
+      document.getElementById("weather-temp").textContent = data.weather.temp;
+      document.getElementById("weather-condition").textContent = data.weather.condition;
+    } else {
+      weatherEl.hidden = true;
+    }
   }
 
-  /** 渲染 ③ 經期卡（圓形進度） */
+  /** ③ 經期卡 */
   function renderCycle() {
     const data = DataModule.getCycle();
-    document.getElementById("cycle-day").textContent = `Day ${data.currentDay}`;
-    document.getElementById("cycle-next").textContent = `距離下次還有 ${data.daysUntilNext} 天`;
+    const contentEl = document.getElementById("cycle-content");
+    const emptyEl = document.getElementById("cycle-empty");
 
-    const ring = document.getElementById("cycle-ring-progress");
-    if (!ring) return;
-    const radius = 52;
-    const circumference = 2 * Math.PI * radius;
-    const percent = data.currentDay / data.cycleLength;
+    if (data.isEmpty) {
+      contentEl.hidden = true;
+      emptyEl.hidden = false;
+      return;
+    }
 
-    ring.style.strokeDasharray = `${circumference}`;
-    ring.style.strokeDashoffset = `${circumference * (1 - percent)}`;
+    contentEl.hidden = false;
+    emptyEl.hidden = true;
+    // 欄位保留供未來經期功能開發時串接，目前不會執行到（無新增入口）
+    document.getElementById("cycle-day").textContent = `Day ${data.currentDay ?? "-"}`;
+    document.getElementById("cycle-next").textContent = data.daysUntilNext
+      ? `距離下次還有 ${data.daysUntilNext} 天`
+      : "";
   }
 
-  /** 渲染 ④ 今日行程（資料來源已改為 EventsModule 當天事件） */
+  /** ④ 今日行程 */
   function renderSchedule() {
     const items = DataModule.getSchedule();
     const listEl = document.getElementById("schedule-list");
@@ -387,7 +378,10 @@ const DashboardModule = (() => {
     if (items.length === 0) {
       const li = document.createElement("li");
       li.className = "schedule-empty";
-      li.textContent = "今天沒有安排";
+      li.innerHTML = `
+        <p class="schedule-empty__text">尚未新增任何行程</p>
+        <button class="empty-state__action" id="schedule-add-btn" type="button">＋ 新增</button>
+      `;
       listEl.appendChild(li);
       return;
     }
@@ -406,24 +400,45 @@ const DashboardModule = (() => {
     });
   }
 
-  /** 渲染 ⑤ 今日飲食 */
+  /** ⑤ 今日飲食 */
   function renderDiet() {
     const data = DataModule.getDiet();
-    document.getElementById("diet-current").textContent = data.current;
-    document.getElementById("diet-goal").textContent = data.goal;
-    setProgressBar("diet-progress-fill", "diet-progress", (data.current / data.goal) * 100);
+    const contentEl = document.getElementById("diet-content");
+    const emptyEl = document.getElementById("diet-empty");
+
+    if (data.isEmpty) {
+      contentEl.hidden = true;
+      emptyEl.hidden = false;
+      return;
+    }
+
+    contentEl.hidden = false;
+    emptyEl.hidden = true;
+    document.getElementById("diet-current").textContent = data.current ?? 0;
+    document.getElementById("diet-goal").textContent = data.goal ?? 0;
+    setProgressBar("diet-progress-fill", "diet-progress", data.goal ? (data.current / data.goal) * 100 : 0);
   }
 
-  /** 渲染 ⑥ 本月支出 */
+  /** ⑥ 本月支出 */
   function renderExpense() {
     const data = DataModule.getExpense();
-    document.getElementById("expense-amount").textContent = `NT$${data.amount.toLocaleString()}`;
-    document.getElementById("expense-budget").textContent = data.budget.toLocaleString();
-    document.getElementById("expense-remaining").textContent = data.remaining.toLocaleString();
-    setProgressBar("expense-progress-fill", "expense-progress", (data.amount / data.budget) * 100);
+    const contentEl = document.getElementById("expense-content");
+    const emptyEl = document.getElementById("expense-empty");
+
+    if (data.isEmpty) {
+      contentEl.hidden = true;
+      emptyEl.hidden = false;
+      return;
+    }
+
+    contentEl.hidden = false;
+    emptyEl.hidden = true;
+    document.getElementById("expense-amount").textContent = `NT$${(data.amount ?? 0).toLocaleString()}`;
+    document.getElementById("expense-budget").textContent = (data.budget ?? 0).toLocaleString();
+    document.getElementById("expense-remaining").textContent = (data.remaining ?? 0).toLocaleString();
+    setProgressBar("expense-progress-fill", "expense-progress", data.budget ? (data.amount / data.budget) * 100 : 0);
   }
 
-  /** 依序渲染所有卡片 */
   function renderAll() {
     renderToday();
     renderDate();
@@ -437,20 +452,19 @@ const DashboardModule = (() => {
 })();
 
 /* ------------------------------------------------------------
-   CalendarModule（Phase 2 新增）
-   負責月視圖的狀態（目前顯示年月、選取日期）與渲染。
-   不處理跳轉頁面，選取日期後交由 SheetModule 顯示詳情。
+   CalendarModule
+   月視圖狀態管理與渲染。沒有事件的日期不會加上任何標記，
+   因為 EventsModule 在空資料狀態下 hasEventsOnDate 恆為 false。
 ------------------------------------------------------------ */
 const CalendarModule = (() => {
   const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 
   const state = {
     year: new Date().getFullYear(),
-    month: new Date().getMonth(), // 0-indexed
+    month: new Date().getMonth(),
     selectedDate: formatDateISO(new Date()),
   };
 
-  /** 產生月視圖需要的完整格子（含前後月補齊的日期），維持 7 欄整除 */
   function buildMonthMatrix(year, month) {
     const firstDay = new Date(year, month, 1);
     const startWeekday = firstDay.getDay();
@@ -466,7 +480,7 @@ const CalendarModule = (() => {
 
   function renderWeekdayHeader() {
     const el = document.getElementById("calendar-weekdays");
-    if (!el || el.children.length > 0) return; // 星期標頭只需渲染一次
+    if (!el || el.children.length > 0) return;
     WEEKDAY_LABELS.forEach((label) => {
       const span = document.createElement("span");
       span.textContent = label;
@@ -553,14 +567,10 @@ const CalendarModule = (() => {
 })();
 
 /* ------------------------------------------------------------
-   SheetModule（Phase 2 新增）
-   管理兩個 Bottom Sheet：
-   1. 日期詳情（點擊日期後顯示，含今日事件／倒數事件）
-   2. 新增事件表單
-   兩者皆不跳轉頁面，僅切換 overlay 的顯示狀態。
+   SheetModule
+   「日期詳情」與「新增／編輯事件」兩個 Bottom Sheet。
 ------------------------------------------------------------ */
 const SheetModule = (() => {
-  /** 開啟日期詳情 Sheet 並填入該日資料 */
   function openDateSheet(dateStr) {
     const overlay = document.getElementById("date-sheet-overlay");
     if (!overlay) return;
@@ -578,13 +588,6 @@ const SheetModule = (() => {
     overlay.dataset.date = dateStr;
   }
 
-  /**
-   * 渲染事件清單，共用於「今日事件」與「倒數事件」兩個區塊。
-   * @param {string} listElId - 目標 <ul> 的 id
-   * @param {Array} events - 事件陣列
-   * @param {string} emptyText - 無資料時顯示的文字
-   * @param {string|null} countdownFromDateStr - 若提供，會顯示距離該日期的天數（用於倒數事件）
-   */
   function renderEventList(listElId, events, emptyText, countdownFromDateStr = null) {
     const listEl = document.getElementById(listElId);
     if (!listEl) return;
@@ -625,11 +628,6 @@ const SheetModule = (() => {
     if (overlay) overlay.hidden = true;
   }
 
-  /**
-   * 開啟新增／編輯事件表單。
-   * @param {string} prefillDateStr - 預設帶入的日期（新增模式使用）
-   * @param {object|null} editEvent - 若提供，表單進入編輯模式並預填此事件資料
-   */
   function openEventForm(prefillDateStr, editEvent = null) {
     const overlay = document.getElementById("event-form-overlay");
     const form = document.getElementById("event-form");
@@ -674,8 +672,6 @@ const SheetModule = (() => {
     const confirmEl = document.getElementById("event-delete-confirm");
     if (!confirmEl) return;
     confirmEl.hidden = false;
-    // 確認列可能出現在目前捲動範圍之外（例如被瀏覽器底部工具列擋住），
-    // 顯示後主動捲動到看得見的位置，避免使用者以為按鈕沒反應。
     confirmEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
@@ -708,16 +704,14 @@ const SheetModule = (() => {
 })();
 
 /* ------------------------------------------------------------
-   ViewModule（Phase 2 新增）
-   在「首頁」與「月曆」兩個 view 之間切換，
-   不使用路由或頁面跳轉，僅切換 DOM 顯示狀態。
+   ViewModule
+   在「首頁」與「月曆」兩個 view 之間切換，不做頁面跳轉。
 ------------------------------------------------------------ */
 const ViewModule = (() => {
   function showView(viewName) {
     document.querySelectorAll(".view").forEach((view) => {
       view.hidden = view.dataset.view !== viewName;
     });
-    // 切換到月曆時重新渲染，確保顯示最新的選取狀態與事件圓點
     if (viewName === "calendar") {
       CalendarModule.render();
     }
@@ -727,20 +721,50 @@ const ViewModule = (() => {
 })();
 
 /* ------------------------------------------------------------
+   ToastModule
+   輕量提示訊息，取代瀏覽器原生 alert()，用於尚未開放的功能
+   （記帳／飲食／經期／分析／更多目前僅有介面雛形，無實際資料流程）。
+------------------------------------------------------------ */
+const ToastModule = (() => {
+  let hideTimer = null;
+
+  function show(message) {
+    const el = document.getElementById("toast");
+    if (!el) return;
+
+    el.textContent = message;
+    el.hidden = false;
+
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      el.hidden = true;
+    }, 2200);
+  }
+
+  return { show };
+})();
+
+/* ------------------------------------------------------------
    InteractionModule
-   綁定所有使用者互動：行程點擊、快捷功能、底部導覽、
-   月曆導覽與日期點擊、兩個 Bottom Sheet 的互動。
+   綁定所有使用者互動。
 ------------------------------------------------------------ */
 const InteractionModule = (() => {
-  /** 今日行程項目點擊（Dashboard） */
+  /** 今日行程項目點擊／今日行程空狀態的新增按鈕（事件委派，因清單內容會重新渲染） */
   function bindScheduleItems() {
     const listEl = document.getElementById("schedule-list");
     if (!listEl) return;
 
     listEl.addEventListener("click", (event) => {
+      const addBtn = event.target.closest("#schedule-add-btn");
+      if (addBtn) {
+        SheetModule.openEventForm(formatDateISO(new Date()));
+        return;
+      }
       const item = event.target.closest(".schedule-item");
       if (!item) return;
-      handleScheduleItemClick(item.dataset.id);
+      const eventData = EventsModule.getById(item.dataset.id);
+      if (!eventData) return;
+      SheetModule.openEventForm(eventData.date, eventData);
     });
 
     listEl.addEventListener("keydown", (event) => {
@@ -748,14 +772,31 @@ const InteractionModule = (() => {
       if (!item) return;
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        handleScheduleItemClick(item.dataset.id);
+        const eventData = EventsModule.getById(item.dataset.id);
+        if (eventData) SheetModule.openEventForm(eventData.date, eventData);
       }
     });
   }
 
-  function handleScheduleItemClick(eventId) {
-    // TODO(Phase 3): 導向事件詳情 / 行內展開編輯表單
-    console.log(`[InteractionModule] 點擊行程項目：${eventId}`);
+  /** TODAY 卡空狀態的「新增倒數」按鈕：直接開表單並預選「賽事」分類 */
+  function bindTodayEmptyAction() {
+    document.getElementById("today-add-btn")?.addEventListener("click", () => {
+      SheetModule.openEventForm(formatDateISO(new Date()));
+      SheetModule.setActiveCategoryChip("race");
+    });
+  }
+
+  /** 經期／飲食／支出卡的「＋ 新增」：目前尚無對應資料流程，提示尚未開放 */
+  function bindPlaceholderCardActions() {
+    document.getElementById("cycle-add-btn")?.addEventListener("click", () => {
+      ToastModule.show("經期功能尚未開放");
+    });
+    document.getElementById("diet-add-btn")?.addEventListener("click", () => {
+      ToastModule.show("飲食紀錄功能尚未開放");
+    });
+    document.getElementById("expense-add-btn")?.addEventListener("click", () => {
+      ToastModule.show("記帳功能尚未開放");
+    });
   }
 
   /** 快捷功能按鈕點擊（Dashboard） */
@@ -776,9 +817,12 @@ const InteractionModule = (() => {
     } else if (action === "calendar") {
       ViewModule.showView("calendar");
       setActiveTabByName("calendar");
-    } else {
-      // TODO(Phase 3+): 記帳 / 飲食 / 經期功能尚未開發
-      console.log(`[InteractionModule] 快捷功能尚未開放：${action}`);
+    } else if (action === "expense") {
+      ToastModule.show("記帳功能尚未開放");
+    } else if (action === "diet") {
+      ToastModule.show("飲食紀錄功能尚未開放");
+    } else if (action === "cycle") {
+      ToastModule.show("經期功能尚未開放");
     }
   }
 
@@ -794,7 +838,6 @@ const InteractionModule = (() => {
     });
   }
 
-  /** 依 tab 名稱同步底部導覽的 active 樣式（中央＋按鈕不參與） */
   function setActiveTabByName(tabName) {
     document.querySelectorAll(".bottom-tab__item").forEach((btn) => {
       const isAddButton = btn.classList.contains("bottom-tab__item--add");
@@ -811,13 +854,13 @@ const InteractionModule = (() => {
       setActiveTabByName("calendar");
     } else if (tab === "add") {
       SheetModule.openEventForm(formatDateISO(new Date()));
-    } else {
-      // TODO(Phase 3+): 分析 / 更多 尚未開發
-      console.log(`[InteractionModule] 分頁尚未開放：${tab}`);
+    } else if (tab === "analytics") {
+      ToastModule.show("分析功能尚未開放");
+    } else if (tab === "more") {
+      ToastModule.show("更多功能尚未開放");
     }
   }
 
-  /** 月曆上一頁／下一頁按鈕 */
   function bindCalendarNav() {
     document.getElementById("calendar-prev")?.addEventListener("click", () => {
       CalendarModule.goToPrevMonth();
@@ -827,7 +870,6 @@ const InteractionModule = (() => {
     });
   }
 
-  /** 月曆日期格子點擊：選取日期並開啟日期詳情 Sheet */
   function bindCalendarGrid() {
     const gridEl = document.getElementById("calendar-grid");
     if (!gridEl) return;
@@ -841,7 +883,6 @@ const InteractionModule = (() => {
     });
   }
 
-  /** 日期詳情 Sheet：關閉按鈕、點擊遮罩關閉、新增事件按鈕 */
   function bindDateSheet() {
     const overlay = document.getElementById("date-sheet-overlay");
     if (!overlay) return;
@@ -861,7 +902,6 @@ const InteractionModule = (() => {
     });
   }
 
-  /** 日期詳情 Sheet 內的事件清單：點擊項目開啟編輯表單 */
   function bindSheetEventLists() {
     ["sheet-events", "sheet-countdown-events"].forEach((listId) => {
       const listEl = document.getElementById(listId);
@@ -886,7 +926,6 @@ const InteractionModule = (() => {
     });
   }
 
-  /** 新增事件表單：關閉、分類選取、送出儲存 */
   function bindEventForm() {
     const overlay = document.getElementById("event-form-overlay");
     if (!overlay) return;
@@ -919,7 +958,7 @@ const InteractionModule = (() => {
       const note = document.getElementById("event-note").value.trim() || null;
       const category = SheetModule.getActiveCategory();
 
-      if (!title || !date) return; // required 屬性已擋大部分情況，此為雙重保護
+      if (!title || !date) return;
 
       if (id) {
         EventsModule.update(id, { title, date, time, category, note });
@@ -928,12 +967,10 @@ const InteractionModule = (() => {
       }
       SheetModule.closeEventForm();
 
-      // 新增／更新可能影響 Dashboard（今日行程／倒數）與月曆（圓點／選取日詳情）
       DashboardModule.renderAll();
       CalendarModule.render();
     });
 
-    // 刪除入口：先展開 App 內建確認列，不使用瀏覽器原生 confirm()
     document.getElementById("event-form-delete")?.addEventListener("click", () => {
       SheetModule.showDeleteConfirm();
     });
@@ -954,6 +991,8 @@ const InteractionModule = (() => {
 
   function bindAll() {
     bindScheduleItems();
+    bindTodayEmptyAction();
+    bindPlaceholderCardActions();
     bindQuickActions();
     bindBottomTab();
     bindCalendarNav();
@@ -968,8 +1007,8 @@ const InteractionModule = (() => {
 
 /* ------------------------------------------------------------
    App
-   進入點：DOM 就緒後準備資料、渲染畫面、綁定互動，
-   並註冊 Service Worker 以支援離線與 PWA。
+   進入點：僅初始化「空的」資料結構（不含任何範例內容）、
+   渲染畫面、綁定互動，並註冊 Service Worker。
 ------------------------------------------------------------ */
 const App = (() => {
   function registerServiceWorker() {
@@ -983,7 +1022,7 @@ const App = (() => {
   }
 
   function init() {
-    EventsModule.seedIfEmpty(); // 首次使用時寫入示範事件
+    BootstrapModule.initEmptyStorageIfNeeded(); // 僅建立空結構，不寫入任何範例資料
     DashboardModule.renderAll();
     CalendarModule.init();
     InteractionModule.bindAll();
