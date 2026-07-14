@@ -652,7 +652,7 @@ input, textarea {
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  row-gap: var(--space-4);
+  row-gap: var(--space-2);
   column-gap: var(--space-1);
   touch-action: pan-y; /* 保留垂直捲動，水平方向由 JS 處理滑動切月 */
 }
@@ -661,19 +661,19 @@ input, textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   color: var(--color-text);
-  padding: var(--space-1) 0;
+  padding: 2px 0;
 }
 
 .cal-day__number {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  font-size: clamp(19px, 5.4vw, 22px);
+  font-size: clamp(15px, 4.2vw, 17px);
   font-weight: 600;
   transition: background var(--duration) var(--easing), color var(--duration) var(--easing), box-shadow var(--duration) var(--easing);
 }
@@ -696,7 +696,7 @@ input, textarea {
 
 /* 今天＋選取：保持白色實心，外圍加一圈細框做出區隔 */
 .cal-day.is-today.is-selected .cal-day__number {
-  box-shadow: 0 0 0 3px var(--color-bg), 0 0 0 4.5px var(--color-text);
+  box-shadow: 0 0 0 2.5px var(--color-bg), 0 0 0 3.5px var(--color-text);
 }
 
 /* 事件標記：最多三個小圓點，不顯示文字 */
