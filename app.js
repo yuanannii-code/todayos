@@ -672,7 +672,11 @@ const SheetModule = (() => {
 
   function showDeleteConfirm() {
     const confirmEl = document.getElementById("event-delete-confirm");
-    if (confirmEl) confirmEl.hidden = false;
+    if (!confirmEl) return;
+    confirmEl.hidden = false;
+    // 確認列可能出現在目前捲動範圍之外（例如被瀏覽器底部工具列擋住），
+    // 顯示後主動捲動到看得見的位置，避免使用者以為按鈕沒反應。
+    confirmEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   function hideDeleteConfirm() {
