@@ -591,7 +591,7 @@ input, textarea {
 .cal-header__actions {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 4px;
   padding-top: 2px;
   flex-shrink: 0;
 }
@@ -601,13 +601,13 @@ input, textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 36px;
-  padding: 0 var(--space-2);
+  height: 34px;
+  padding: 0 var(--space-1);
   border-radius: var(--radius-pill);
   border: 1px solid var(--color-divider);
   background: transparent;
   color: var(--color-text);
-  font: 590 14px/1 var(--font-family);
+  font: 590 13px/1 var(--font-family);
   transition: opacity var(--duration) var(--easing), transform var(--duration) var(--easing), background var(--duration) var(--easing);
 }
 
@@ -616,10 +616,10 @@ input, textarea {
   transform: scale(0.97);
 }
 
-/* 圖示按鈕：搜尋／設定，無背景、無外框，維持極簡 */
+/* 圖示按鈕：新增／搜尋／設定，無背景、無外框，維持極簡 */
 .cal-icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -699,41 +699,23 @@ input, textarea {
   box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 3px var(--color-text);
 }
 
-/* 事件文字：顯示在日期下方，最多兩行，超過以 +N 表示 */
-.cal-day__events {
+/* 事件標記：最多三個小圓點，不顯示文字 */
+.cal-day__dots {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1px;
-  width: 100%;
-  padding: 0 2px;
+  justify-content: center;
+  gap: 3px;
+  height: 4px;
 }
 
-.cal-day__event-text {
-  width: 100%;
-  max-width: 100%;
-  font-size: 9px;
-  line-height: 1.2;
-  color: var(--color-text-secondary);
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.cal-day__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-text);
 }
 
-.cal-day.is-today .cal-day__event-text,
-.cal-day.is-selected .cal-day__event-text {
-  color: var(--color-text);
-}
-
-.cal-day__event-more {
-  font-size: 9px;
-  line-height: 1.2;
-  color: var(--color-text-secondary);
-}
-
-.cal-day.is-other-month .cal-day__event-text,
-.cal-day.is-other-month .cal-day__event-more {
+.cal-day.is-other-month .cal-day__dot {
   opacity: 0.4;
 }
 
@@ -811,16 +793,6 @@ input, textarea {
 .cal-detail__empty-text {
   font: var(--font-body);
   color: var(--color-text-secondary);
-}
-
-.cal-pill--add {
-  align-self: stretch;
-  justify-content: center;
-  height: 48px;
-  background: var(--color-text);
-  color: var(--color-bg);
-  border-color: transparent;
-  font-size: 15px;
 }
 
 /* ------------------------------------------------------------

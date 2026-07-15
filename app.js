@@ -465,7 +465,7 @@ const CalendarModule = (() => {
     "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
     "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
   ];
-  const MAX_VISIBLE_EVENT_TEXTS = 2; // 日期下方最多顯示幾筆事件文字，超過則顯示 +N
+  const MAX_DOTS = 3; // 事件最多顯示三個小圓點
   const SWIPE_THRESHOLD_PX = 40; // 判定為左右滑動的最小水平位移
 
   const state = {
@@ -522,7 +522,7 @@ const CalendarModule = (() => {
       const isCurrentMonth = cellDate.getMonth() === state.month;
       const isToday = dateStr === todayStr;
       const isSelected = dateStr === state.selectedDate;
-      const dayEvents = EventsModule.getByDate(dateStr);
+      const dotCount = Math.min(EventsModule.getByDate(dateStr).length, MAX_DOTS);
 
       const cellBtn = document.createElement("button");
       cellBtn.type = "button";
@@ -534,19 +534,13 @@ const CalendarModule = (() => {
       cellBtn.setAttribute("role", "gridcell");
       cellBtn.setAttribute("aria-label", dateStr);
 
-      const visibleTitles = dayEvents.slice(0, MAX_VISIBLE_EVENT_TEXTS);
-      const overflowCount = dayEvents.length - visibleTitles.length;
-
-      const eventsHtml = dayEvents.length > 0
-        ? `<span class="cal-day__events">
-            ${visibleTitles.map((e) => `<span class="cal-day__event-text">${e.title}</span>`).join("")}
-            ${overflowCount > 0 ? `<span class="cal-day__event-more">+${overflowCount}</span>` : ""}
-          </span>`
-        : "";
+      const dotsHtml = dotCount > 0
+        ? `<span class="cal-day__dots" aria-hidden="true">${'<span class="cal-day__dot"></span>'.repeat(dotCount)}</span>`
+        : '<span class="cal-day__dots" aria-hidden="true"></span>';
 
       cellBtn.innerHTML = `
         <span class="cal-day__number">${cellDate.getDate()}</span>
-        ${eventsHtml}
+        ${dotsHtml}
       `;
       gridEl.appendChild(cellBtn);
     });
@@ -891,9 +885,7 @@ const InteractionModule = (() => {
   }
 
   function handleQuickAction(action) {
-    if (action === "add") {
-      SheetModule.openEventForm(formatDateISO(new Date()));
-    } else if (action === "calendar") {
+    if (action === "calendar") {
       ViewModule.showView("calendar");
       setActiveTabByName("calendar");
     } else if (action === "expense") {
@@ -940,10 +932,13 @@ const InteractionModule = (() => {
     }
   }
 
-  /** 月曆標頭：Today（回到今天）／搜尋／設定（後兩者尚未開放功能，僅提示） */
+  /** 月曆標頭：Today（回到今天）／新增事件／搜尋／設定（後兩者尚未開放功能，僅提示） */
   function bindCalendarHeaderActions() {
     document.getElementById("calendar-today-btn")?.addEventListener("click", () => {
       CalendarModule.goToToday();
+    });
+    document.getElementById("calendar-add-event-btn")?.addEventListener("click", () => {
+      SheetModule.openEventForm(CalendarModule.getSelectedDate());
     });
     document.getElementById("calendar-search-btn")?.addEventListener("click", () => {
       ToastModule.show("搜尋功能尚未開放");
@@ -967,7 +962,7 @@ const InteractionModule = (() => {
     });
   }
 
-  /** 固定日期詳情區：點擊事件列開啟編輯、點「＋ 新增事件」開啟新增表單 */
+  /** 固定日期詳情區：點擊事件列開啟編輯表單 */
   function bindCalendarDetail() {
     const detailEl = document.getElementById("calendar-detail");
     if (!detailEl) return;
@@ -980,10 +975,6 @@ const InteractionModule = (() => {
     };
 
     detailEl.addEventListener("click", (event) => {
-      if (event.target.closest("#calendar-add-event-btn")) {
-        SheetModule.openEventForm(CalendarModule.getSelectedDate());
-        return;
-      }
       openEditor(event.target);
     });
 
