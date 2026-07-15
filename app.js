@@ -456,8 +456,8 @@ const DashboardModule = (() => {
    月視圖狀態管理與渲染（Apple Calendar 風格重新設計）：
    - 週一為首（M T W T F S S）
    - 標頭顯示年份＋超大月份縮寫
-   - 月曆格子不使用格線／方框，事件僅以最多三個小圓點表示
-   - 支援左右滑動切換月份（觸控），沒有事件的日期不加任何標記
+   - 月曆格子不使用格線／方框，日期下方直接顯示事件文字
+     （最多兩筆，超過以 +N 表示），沒有事件的日期不加任何標記
 ------------------------------------------------------------ */
 const CalendarModule = (() => {
   const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"]; // 週一為首
@@ -465,7 +465,7 @@ const CalendarModule = (() => {
     "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
     "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
   ];
-  const MAX_DOTS = 3; // 事件最多顯示三個小圓點
+  const MAX_VISIBLE_EVENT_TEXTS = 2; // 日期下方最多顯示幾筆事件文字，超過則顯示 +N
   const SWIPE_THRESHOLD_PX = 40; // 判定為左右滑動的最小水平位移
 
   const state = {
@@ -522,7 +522,7 @@ const CalendarModule = (() => {
       const isCurrentMonth = cellDate.getMonth() === state.month;
       const isToday = dateStr === todayStr;
       const isSelected = dateStr === state.selectedDate;
-      const dotCount = Math.min(EventsModule.getByDate(dateStr).length, MAX_DOTS);
+      const dayEvents = EventsModule.getByDate(dateStr);
 
       const cellBtn = document.createElement("button");
       cellBtn.type = "button";
@@ -534,13 +534,19 @@ const CalendarModule = (() => {
       cellBtn.setAttribute("role", "gridcell");
       cellBtn.setAttribute("aria-label", dateStr);
 
-      const dotsHtml = dotCount > 0
-        ? `<span class="cal-day__dots" aria-hidden="true">${'<span class="cal-day__dot"></span>'.repeat(dotCount)}</span>`
-        : '<span class="cal-day__dots" aria-hidden="true"></span>';
+      const visibleTitles = dayEvents.slice(0, MAX_VISIBLE_EVENT_TEXTS);
+      const overflowCount = dayEvents.length - visibleTitles.length;
+
+      const eventsHtml = dayEvents.length > 0
+        ? `<span class="cal-day__events">
+            ${visibleTitles.map((e) => `<span class="cal-day__event-text">${e.title}</span>`).join("")}
+            ${overflowCount > 0 ? `<span class="cal-day__event-more">+${overflowCount}</span>` : ""}
+          </span>`
+        : "";
 
       cellBtn.innerHTML = `
         <span class="cal-day__number">${cellDate.getDate()}</span>
-        ${dotsHtml}
+        ${eventsHtml}
       `;
       gridEl.appendChild(cellBtn);
     });
@@ -653,7 +659,6 @@ const CalendarDetailModule = (() => {
     if (dateEl) dateEl.textContent = formatFullDateDisplay(dateObj);
 
     renderTodayEvents(dateStr);
-    renderUpcomingEvents(dateStr);
   }
 
   function renderTodayEvents(dateStr) {
@@ -678,27 +683,8 @@ const CalendarDetailModule = (() => {
     });
   }
 
-  function renderUpcomingEvents(dateStr) {
-    const groupEl = document.getElementById("calendar-detail-upcoming-group");
-    const listEl = document.getElementById("calendar-detail-upcoming");
-    if (!groupEl || !listEl) return;
-
-    const upcoming = EventsModule.getUpcoming(dateStr, 5);
-    listEl.innerHTML = "";
-
-    if (upcoming.length === 0) {
-      groupEl.hidden = true;
-      return;
-    }
-
-    groupEl.hidden = false;
-    upcoming.forEach((event) => {
-      listEl.appendChild(buildEventRow(event, dateStr));
-    });
-  }
-
-  /** 建立單一事件列（時間＋標題，近期事件額外附上倒數天數），點擊可編輯 */
-  function buildEventRow(event, countdownFromDateStr = null) {
+  /** 建立單一事件列（時間＋標題），點擊可編輯 */
+  function buildEventRow(event) {
     const li = document.createElement("li");
     li.className = "cal-detail__event";
     li.dataset.id = event.id;
@@ -706,14 +692,9 @@ const CalendarDetailModule = (() => {
     li.setAttribute("role", "button");
     li.setAttribute("aria-label", `編輯事件：${event.title}`);
 
-    const countdownHtml = countdownFromDateStr
-      ? `<span class="cal-detail__event-countdown">${diffInDays(countdownFromDateStr, event.date)}天後</span>`
-      : "";
-
     li.innerHTML = `
       <span class="cal-detail__event-time">${event.time || "全天"}</span>
       <span class="cal-detail__event-title">${event.title}</span>
-      ${countdownHtml}
     `;
     return li;
   }
